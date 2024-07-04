@@ -1,58 +1,100 @@
 const express = require("express");
 const mongoose = require('mongoose');
-const bodyParser = require('body-parser');
+
 const app = express();
 const port = 3000;
 
-// Middleware para parsear o body das requisições
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.json());
 
-const produtosSchema = new mongoose.Schema({
-  title: String,
-  description: String,
-  image_url: String,
-  preco: String  // Corrigido para 'preco' conforme a propriedade definida no schema
+mongoose.connect('mongodb+srv://luanavasquesx:iIrwSkjqDTCYvzdB@cluster0.k98paaw.mongodb.net/vasquescosméticos?retryWrites=true&w=majority&appName=Cluster0', {
 });
 
-const Produtos = mongoose.model('Produtos', produtosSchema);
+const ProductSchema = new mongoose.Schema({
+    title: String,
+    description: String,
+    image_url: String,
+    value: Number
+});
 
-// Rota para criar um novo produto
-app.post("/", async (req, res) => {
-  try {
-    const novoProduto = new Produtos({
-      title: req.body.title,
-      description: req.body.description,
-      image_url: req.body.image_url,
-      preco: req.body.preco  // Corrigido para 'preco' conforme a propriedade definida no schema
+const ProductModel = mongoose.model('Product', ProductSchema);
+
+// Rota GET para obter todos os produtos
+app.get("/", async (req, res) => {
+    try {
+        const products = await ProductModel.find();
+        res.json(products); // Retorna os produtos encontrados como resposta
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Erro ao buscar os produtos no banco de dados.");
+    }
+});
+
+// Rota POST para criar um novo produto
+app.post("/", (req, res) => {
+    // Extrair os dados do corpo da requisição
+    const { title, description, image_url, value } = req.body;
+
+    // Criar um novo produto usando o modelo ProductModel do Mongoose
+    const newProduct = new ProductModel({
+        title: title,
+        description: description,
+        image_url: image_url,
+        value: value
     });
 
-    const produtoSalvo = await novoProduto.save();
-    res.status(201).json(produtoSalvo);  // Retorna o produto salvo como JSON
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+    // Salvar o novo produto no banco de dados
+    newProduct.save()
+        .then(product => {
+            res.status(201).json(product); // Retornar o produto criado como resposta
+        })
+        .catch(err => {
+            console.error(err);
+            res.status(500).send("Erro ao salvar o produto no banco de dados.");
+        });
 });
 
-// Rota para listar todos os produtos
-app.get('/', async (req, res) => {
-  try {
-    const produtos = await Produtos.find();
-    res.json(produtos);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+// Rota PUT para atualizar um produto por ID
+app.put("/:id", async (req, res) => {
+    const productId = req.params.id;
+    const { title, description, image_url, value } = req.body;
+
+    try {
+        const updatedProduct = await ProductModel.findByIdAndUpdate(productId, {
+            title: title,
+            description: description,
+            image_url: image_url,
+            value: value
+        }, { new: true });
+
+        if (!updatedProduct) {
+            res.status(404).send("Produto não encontrado.");
+            return;
+        }
+
+        res.json(updatedProduct);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Erro ao atualizar o produto.");
+    }
 });
 
-app.listen(port, () => { 
-  mongoose.connect('mongodb+srv://luanavasquesx:<759216>@cluster0.9nczpxf.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
+// Rota DELETE para deletar um produto por ID
+app.delete("/:id", async (req, res) => {
+    const productId = req.params.id;
 
-  dbName: 'cosmetics'  // Nome do banco de dados
-}).then(() => {
-  console.log('MongoDB connected');
-}).catch(err => {
-  console.error('MongoDB connection error:', err);
+    try {
+        const deletedProduct = await ProductModel.findByIdAndDelete(productId);
+        if (!deletedProduct) {
+            res.status(404).send("Produto não encontrado.");
+            return;
+        }
+        res.status(204).send();
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Erro ao deletar o produto.");
+    }
 });
 
-  console.log(`App running on port ${port}`);
+app.listen(port, () => {
+    console.log('App running on port', port);
 });
